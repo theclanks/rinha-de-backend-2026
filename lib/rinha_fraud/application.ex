@@ -38,16 +38,30 @@ defmodule RinhaFraud.Application do
         {:ok, pid}
 
       false ->
-        port = String.to_integer(System.get_env("PORT", "9999"))
+        socket_path = System.get_env("API_SOCKET")
+
+        bandit_opts = if socket_path do
+          [
+            plug: RinhaFraud.Router,
+            ip: {:local, socket_path},
+            port: 0,
+            startup_log: false,
+            thousand_island_options: [num_acceptors: 1]
+          ]
+        else
+          port = String.to_integer(System.get_env("PORT", "9999"))
+          [
+            plug: RinhaFraud.Router,
+            port: port,
+            startup_log: false,
+            thousand_island_options: [num_acceptors: 64]
+          ]
+        end
 
         children = [
           RinhaFraud.VectorStore,
           RinhaFraud.ReadyFlag,
-          {Bandit,
-           plug: RinhaFraud.Router,
-           port: port,
-           startup_log: false,
-           thousand_island_options: [num_acceptors: 64]}
+          {Bandit, bandit_opts}
         ]
 
         opts = [strategy: :one_for_one, name: RinhaFraud.Supervisor]
