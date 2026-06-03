@@ -12,33 +12,33 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.04"
+          cpus: "0.30"
           memory: "30MB"
     networks:
       - rinha
 
   api1:
-    build: .
+    image: rinha_backend:latest
     platform: linux/amd64
     environment:
-      - MODE=api
+      - PORT=4000
     deploy:
       resources:
         limits:
-          cpus: "0.48"
+          cpus: "0.35"
           memory: "160MB"
     networks:
       - rinha
 
   api2:
-    build: .
+    image: rinha_backend:latest
     platform: linux/amd64
     environment:
-      - MODE=api
+      - PORT=4001
     deploy:
       resources:
         limits:
-          cpus: "0.48"
+          cpus: "0.35"
           memory: "160MB"
     networks:
       - rinha

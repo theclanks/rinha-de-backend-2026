@@ -17,7 +17,7 @@ COPY native ./native
 
 RUN python3 convert_data.py resources/references.json.gz
 
-RUN cd native/knn && make
+RUN cd native/knn && ERTS_INCLUDE_DIR=/usr/local/lib/erlang/erts-14.2.5.15/include make
 
 RUN MIX_ENV=prod mix release --overwrite
 
@@ -32,10 +32,12 @@ COPY --from=builder /app/resources/vectors_8d_sorted.bin /app/resources/labels_s
 COPY --from=builder /app/resources/centroids.bin /app/resources/bucket_starts.bin /app/resources/svd_matrix.bin ./resources/
 COPY --from=builder /app/resources/lda_w.bin /app/resources/lda_w0.bin ./resources/
 COPY --from=builder /app/resources/fraud_centroid.bin /app/resources/legit_centroid.bin /app/resources/cov_inv.bin ./resources/
-COPY --from=builder /app/native/knn/priv/knn.so ./priv/
-COPY --from=builder /app/native/knn/priv/knn.so ./lib/rinha_fraud-0.1.0/priv/
 
 COPY --from=builder /app/_build/prod/rel/rinha_fraud ./
+
+# Copy NIF to the correct priv directory inside the release
+COPY --from=builder /app/native/knn/priv/knn.so /tmp/knn.so
+RUN mkdir -p ./lib/rinha_fraud-0.1.0/priv && cp /tmp/knn.so ./lib/rinha_fraud-0.1.0/priv/
 
 ENV MIX_ENV=prod
 

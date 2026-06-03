@@ -47,27 +47,34 @@ bucket_starts[unique + 1] = np.cumsum(counts)
 
 print(f"Index built: {n_clusters} clusters, avg size {n/n_clusters:.0f}")
 
-# LDA Parameters
-print("Computing LDA parameters...")
+# LDA Parameters - trained on FULL 14D data for maximum accuracy
+print("Computing LDA parameters on 14D data...")
 fraud_mask = labels == 1
 legit_mask = labels == 0
 
-mu_fraud = vectors_8d[fraud_mask].mean(axis=0)
-mu_legit = vectors_8d[legit_mask].mean(axis=0)
+mu_fraud_14d = vectors[fraud_mask].mean(axis=0)
+mu_legit_14d = vectors[legit_mask].mean(axis=0)
 
-# Pooled covariance inverse (already computed for Mahalanobis)
-fraud_cov = np.cov(vectors_8d[fraud_mask][:100000].T)
-legit_cov = np.cov(vectors_8d[legit_mask][:100000].T)
+# Pooled covariance inverse on 14D (sample for memory)
+sample_size = min(500000, fraud_mask.sum(), legit_mask.sum())
+fraud_sample = vectors[fraud_mask][:sample_size]
+legit_sample = vectors[legit_mask][:sample_size]
+
+fraud_cov = np.cov(fraud_sample.T)
+legit_cov = np.cov(legit_sample.T)
 pooled_cov = (fraud_cov + legit_cov) / 2
-pooled_cov += np.eye(n_components) * 0.01
+pooled_cov += np.eye(vectors.shape[1]) * 0.01
 cov_inv = np.linalg.inv(pooled_cov)
 
 # LDA weights: w = Sigma^-1 * (mu_fraud - mu_legit)
-w = cov_inv @ (mu_fraud - mu_legit)
+w_14d = cov_inv @ (mu_fraud_14d - mu_legit_14d)
 # LDA intercept: w0 = -0.5 * w^T * (mu_fraud + mu_legit)
-w0 = -0.5 * w.T @ (mu_fraud + mu_legit)
+w0_14d = -0.5 * w_14d.T @ (mu_fraud_14d + mu_legit_14d)
 
-print(f"LDA weights computed: w0={w0:.4f}")
+print(f"LDA 14D weights computed: w0={w0_14d:.4f}")
+
+# Also compute SVD and K-means for IVF (keep for fallback)
+print(f"Computing SVD {vectors.shape[1]}D -> {n_components}D...")
 
 # Save files
 print("Saving binary files...")
@@ -79,14 +86,15 @@ with open(f"{output_dir}/centroids.bin", "wb") as f:
     f.write(centroids.tobytes())
 with open(f"{output_dir}/bucket_starts.bin", "wb") as f:
     f.write(bucket_starts.tobytes())
+# Save LDA 14D parameters
+with open(f"{output_dir}/lda_w.bin", "wb") as f:
+    f.write(w_14d.astype(np.float32).tobytes())
+with open(f"{output_dir}/lda_w0.bin", "wb") as f:
+    f.write(np.array([w0_14d], dtype=np.float32).tobytes())
+
+# Save SVD matrix for IVF fallback
 with open(f"{output_dir}/svd_matrix.bin", "wb") as f:
     f.write(svd.components_.astype(np.float32).tobytes())
-
-# Save LDA parameters
-with open(f"{output_dir}/lda_w.bin", "wb") as f:
-    f.write(w.astype(np.float32).tobytes())
-with open(f"{output_dir}/lda_w0.bin", "wb") as f:
-    f.write(np.array([w0], dtype=np.float32).tobytes())
 
 # Save centroids in 8D space for Mahalanobis
 with open(f"{output_dir}/fraud_centroid.bin", "wb") as f:

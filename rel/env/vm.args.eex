@@ -1,0 +1,11 @@
+## Distributed Erlang configuration
+-name ${RELEASE_NODE:-rinha_fraud@127.0.0.1}
+
+## Cookie for cluster authentication
+-setcookie rinha2026
+
+## Enable kernel polling
++K true
+
+## SMP support
++smp auto

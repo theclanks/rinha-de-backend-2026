@@ -58,6 +58,17 @@ defmodule RinhaFraud.VectorStore do
     |> Enum.sort()
   end
 
+  def knn_brute_force(query_vec, k) do
+    [{:vectors, vectors_bin}] = :ets.lookup(:vector_store, :vectors)
+    [{:labels, labels_bin}] = :ets.lookup(:vector_store, :labels)
+    [{:svd_matrix, svd_matrix}] = :ets.lookup(:vector_store, :svd_matrix)
+
+    query_14d = floats_to_binary(query_vec)
+    query_8d = RinhaFraud.KnnNif.project_svd(query_14d, svd_matrix)
+
+    RinhaFraud.KnnNif.knn_brute_force(vectors_bin, labels_bin, query_8d, k)
+  end
+
   defp floats_to_binary(floats) do
     for f <- floats, into: <<>>, do: <<f::float-little-32>>
   end

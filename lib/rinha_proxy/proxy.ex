@@ -1,12 +1,13 @@
 defmodule RinhaProxy do
   @moduledoc """
   Proxy TCP round-robin simples. Escuta na porta configurada e distribui
-  conexoes entre os backends em round-robin.
+  conexoes entre os backends via Unix Domain Sockets.
   """
 
   def start(port, backends) do
     {:ok, listen_socket} = :gen_tcp.listen(port, [
-      :binary, {:active, false}, {:reuseaddr, true}, {:packet, :raw}
+      :binary, {:active, false}, {:reuseaddr, true}, {:packet, :raw},
+      {:recbuf, 65536}, {:sndbuf, 65536}
     ])
 
     counter = :atomics.new(1, [])
@@ -25,8 +26,23 @@ defmodule RinhaProxy do
         :ok
 
       {:error, _} ->
-        :timer.sleep(100)
+        :timer.sleep(10)
         accept_loop(listen_socket, backends, counter)
+    end
+  end
+
+  defp handle_client(client_socket, {:local, socket_path}) do
+    :inet.setopts(client_socket, [{:active, :once}])
+
+    case :gen_tcp.connect({:local, socket_path}, 0, [:binary, {:active, :once}, {:packet, :raw}]) do
+      {:ok, backend_socket} ->
+        relay(client_socket, backend_socket)
+        :gen_tcp.close(client_socket)
+        :gen_tcp.close(backend_socket)
+
+      {:error, _} ->
+        :gen_tcp.send(client_socket, "HTTP/1.1 502 Bad Gateway\r\n\r\n")
+        :gen_tcp.close(client_socket)
     end
   end
 

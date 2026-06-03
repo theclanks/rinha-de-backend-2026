@@ -15,4 +15,12 @@ defmodule RinhaFraud.KnnNif do
   def project_svd(_query_bin, _matrix_bin) do
     exit("NIF project_svd/2 not implemented")
   end
+
+  def mahalanobis_score(_query_bin, _cov_inv_bin, _fraud_bin, _legit_bin) do
+    exit("NIF mahalanobis_score/4 not implemented")
+  end
+
+  def knn_brute_force(_vectors_bin, _labels_bin, _query_bin, _k) do
+    exit("NIF knn_brute_force/4 not implemented")
+  end
 end
