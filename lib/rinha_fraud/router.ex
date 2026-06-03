@@ -1,10 +1,6 @@
 defmodule RinhaFraud.Router do
   use Plug.Router
 
-  plug Plug.Parsers,
-    parsers: [:json],
-    json_decoder: Jason
-
   plug :match
   plug :dispatch
 
@@ -23,7 +19,8 @@ defmodule RinhaFraud.Router do
   end
 
   post "/fraud-score" do
-    payload = conn.body_params
+    {:ok, body, conn} = Plug.Conn.read_body(conn)
+    payload = Jason.decode!(body)
     vec = RinhaFraud.Vectorizer.vectorize(payload, @consts, @mcc_risk)
     score = lda_predict(vec)
     respond(conn, score)
@@ -60,7 +57,7 @@ defmodule RinhaFraud.Router do
   defp respond(conn, score) do
     body = if score < 0.6, do: @resp_approved, else: @resp_rejected
     conn
-    |> put_resp_content_type("application/json")
+    |> put_resp_header("content-type", "application/json")
     |> send_resp(200, body)
   end
 end
