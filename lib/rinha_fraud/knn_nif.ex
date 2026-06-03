@@ -1,0 +1,18 @@
+defmodule RinhaFraud.KnnNif do
+  @moduledoc false
+
+  @on_load :load_nif
+
+  def load_nif do
+    path = :filename.join(:code.priv_dir(:rinha_fraud), "knn")
+    :erlang.load_nif(path, 0)
+  end
+
+  def knn_search_ivf(_vectors_bin, _labels_bin, _centroids_bin, _bucket_starts_bin, _query_bin, _k, _nprobe, _n_clusters) do
+    exit("NIF knn_search_ivf/8 not implemented")
+  end
+
+  def project_svd(_query_bin, _matrix_bin) do
+    exit("NIF project_svd/2 not implemented")
+  end
+end
