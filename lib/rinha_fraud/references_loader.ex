@@ -1,6 +1,6 @@
 defmodule RinhaFraud.ReferencesLoader do
   @moduledoc """
-  Carrega vetores 8D pre-processados (IVF + SVD 14->8) + matriz de projecao.
+  Carrega vetores 8D pre-processados (IVF + SVD 14->8) + parametros LDA.
   """
 
   require Logger
@@ -14,12 +14,14 @@ defmodule RinhaFraud.ReferencesLoader do
     centroids_bin = File.read!("#{path}/centroids.bin")
     bucket_starts_bin = File.read!("#{path}/bucket_starts.bin")
     svd_matrix = File.read!("#{path}/svd_matrix.bin")
+    lda_w = File.read!("#{path}/lda_w.bin")
+    lda_w0 = File.read!("#{path}/lda_w0.bin")
     fraud_centroid = File.read!("#{path}/fraud_centroid.bin")
     legit_centroid = File.read!("#{path}/legit_centroid.bin")
     cov_inv = File.read!("#{path}/cov_inv.bin")
     count = byte_size(labels_bin)
 
-    RinhaFraud.VectorStore.set_data(vectors_bin, labels_bin, count, centroids_bin, bucket_starts_bin, svd_matrix, fraud_centroid, legit_centroid, cov_inv)
+    RinhaFraud.VectorStore.set_data(vectors_bin, labels_bin, count, centroids_bin, bucket_starts_bin, svd_matrix, lda_w, lda_w0, fraud_centroid, legit_centroid, cov_inv)
 
     elapsed = System.monotonic_time(:millisecond) - t0
     Logger.info("[ReferencesLoader] #{count} vetores 8D (IVF) em #{elapsed}ms")

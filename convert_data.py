@@ -44,13 +44,30 @@ assignments_sorted = assignments[sort_idx]
 bucket_starts = np.zeros(n_clusters + 1, dtype=np.int32)
 unique, counts = np.unique(assignments_sorted, return_counts=True)
 bucket_starts[unique + 1] = np.cumsum(counts)
-# Fill gaps if any (shouldn't happen with k-means)
-for i in range(1, n_clusters + 1):
-    if bucket_starts[i] == 0:
-        bucket_starts[i] = bucket_starts[i-1]
 
 print(f"Index built: {n_clusters} clusters, avg size {n/n_clusters:.0f}")
-print(f"Bucket size stats: min={counts.min()}, max={counts.max()}, median={np.median(counts):.0f}")
+
+# LDA Parameters
+print("Computing LDA parameters...")
+fraud_mask = labels == 1
+legit_mask = labels == 0
+
+mu_fraud = vectors_8d[fraud_mask].mean(axis=0)
+mu_legit = vectors_8d[legit_mask].mean(axis=0)
+
+# Pooled covariance inverse (already computed for Mahalanobis)
+fraud_cov = np.cov(vectors_8d[fraud_mask][:100000].T)
+legit_cov = np.cov(vectors_8d[legit_mask][:100000].T)
+pooled_cov = (fraud_cov + legit_cov) / 2
+pooled_cov += np.eye(n_components) * 0.01
+cov_inv = np.linalg.inv(pooled_cov)
+
+# LDA weights: w = Sigma^-1 * (mu_fraud - mu_legit)
+w = cov_inv @ (mu_fraud - mu_legit)
+# LDA intercept: w0 = -0.5 * w^T * (mu_fraud + mu_legit)
+w0 = -0.5 * w.T @ (mu_fraud + mu_legit)
+
+print(f"LDA weights computed: w0={w0:.4f}")
 
 # Save files
 print("Saving binary files...")
@@ -65,18 +82,18 @@ with open(f"{output_dir}/bucket_starts.bin", "wb") as f:
 with open(f"{output_dir}/svd_matrix.bin", "wb") as f:
     f.write(svd.components_.astype(np.float32).tobytes())
 
+# Save LDA parameters
+with open(f"{output_dir}/lda_w.bin", "wb") as f:
+    f.write(w.astype(np.float32).tobytes())
+with open(f"{output_dir}/lda_w0.bin", "wb") as f:
+    f.write(np.array([w0], dtype=np.float32).tobytes())
+
 # Save centroids in 8D space for Mahalanobis
 with open(f"{output_dir}/fraud_centroid.bin", "wb") as f:
     f.write(vectors_8d[labels == 1].mean(axis=0).astype(np.float32).tobytes())
 with open(f"{output_dir}/legit_centroid.bin", "wb") as f:
     f.write(vectors_8d[labels == 0].mean(axis=0).astype(np.float32).tobytes())
 
-# Save inverse covariance matrix (8D, for Mahalanobis distance)
-fraud_cov = np.cov(vectors_8d[labels == 1][:100000].T)
-legit_cov = np.cov(vectors_8d[labels == 0][:100000].T)
-pooled_cov = (fraud_cov + legit_cov) / 2
-pooled_cov += np.eye(n_components) * 0.01
-cov_inv = np.linalg.inv(pooled_cov)
 with open(f"{output_dir}/cov_inv.bin", "wb") as f:
     f.write(cov_inv.astype(np.float32).tobytes())
 

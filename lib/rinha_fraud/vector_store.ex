@@ -20,13 +20,15 @@ defmodule RinhaFraud.VectorStore do
     Agent.start_link(fn -> :ok end, name: __MODULE__)
   end
 
-  def set_data(vectors_bin, labels_bin, count, centroids_bin, bucket_starts_bin, svd_matrix, fraud_centroid, legit_centroid, cov_inv) do
+  def set_data(vectors_bin, labels_bin, count, centroids_bin, bucket_starts_bin, svd_matrix, lda_w, lda_w0, fraud_centroid, legit_centroid, cov_inv) do
     :ets.insert(:vector_store, {:vectors, vectors_bin})
     :ets.insert(:vector_store, {:labels, labels_bin})
     :ets.insert(:vector_store, {:count, count})
     :ets.insert(:vector_store, {:centroids, centroids_bin})
     :ets.insert(:vector_store, {:bucket_starts, bucket_starts_bin})
     :ets.insert(:vector_store, {:svd_matrix, svd_matrix})
+    :ets.insert(:vector_store, {:lda_w, lda_w})
+    :ets.insert(:vector_store, {:lda_w0, lda_w0})
     :ets.insert(:vector_store, {:fraud_centroid, fraud_centroid})
     :ets.insert(:vector_store, {:legit_centroid, legit_centroid})
     :ets.insert(:vector_store, {:cov_inv, cov_inv})

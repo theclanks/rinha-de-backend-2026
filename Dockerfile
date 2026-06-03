@@ -30,6 +30,7 @@ RUN apk add --no-cache libgcc
 COPY resources/normalization.json resources/mcc_risk.json ./resources/
 COPY --from=builder /app/resources/vectors_8d_sorted.bin /app/resources/labels_sorted.bin ./resources/
 COPY --from=builder /app/resources/centroids.bin /app/resources/bucket_starts.bin /app/resources/svd_matrix.bin ./resources/
+COPY --from=builder /app/resources/lda_w.bin /app/resources/lda_w0.bin ./resources/
 COPY --from=builder /app/resources/fraud_centroid.bin /app/resources/legit_centroid.bin /app/resources/cov_inv.bin ./resources/
 COPY --from=builder /app/native/knn/priv/knn.so ./priv/
 COPY --from=builder /app/native/knn/priv/knn.so ./lib/rinha_fraud-0.1.0/priv/

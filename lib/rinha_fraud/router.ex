@@ -26,10 +26,10 @@ defmodule RinhaFraud.Router do
     vec = RinhaFraud.Vectorizer.vectorize(payload, @consts, @mcc_risk)
     t1 = System.monotonic_time(:microsecond)
 
-    case fast_path(vec) do
+    case lda_path(vec) do
       {:ok, score} ->
         t2 = System.monotonic_time(:microsecond)
-        log_trace(t0, t1 - t0, 0, 0, "fast", score)
+        log_trace(t0, t1 - t0, 0, 0, "lda", score)
         respond(conn, score)
 
       :miss ->
@@ -43,7 +43,6 @@ defmodule RinhaFraud.Router do
           :miss ->
             # IVF KNN with SVD+AVX
             t2 = System.monotonic_time(:microsecond)
-            # Adaptive nprobe: start with 5, can increase if needed
             nprobe = 10
             try do
               neighbors = RinhaFraud.VectorStore.knn(vec, 5, nprobe)
@@ -68,29 +67,27 @@ defmodule RinhaFraud.Router do
     send_resp(conn, 404, "{\"error\":\"not found\"}")
   end
 
-  defp fast_path([amount, installments, amount_vs_avg, _hour, _dow,
-     min_since_last, _km_from_last, km_from_home, tx_count,
-     _is_online, card_present, unknown_merchant, mcc_risk, _merchant_avg]) do
+  defp lda_path(vec) do
+    [{:lda_w, lda_w_bin}] = :ets.lookup(:vector_store, :lda_w)
+    [{:lda_w0, lda_w0_bin}] = :ets.lookup(:vector_store, :lda_w0)
 
-    risk = 0.0
-    risk = risk + if amount > 0.7, do: 0.15, else: 0.0
-    risk = risk + if installments > 0.6, do: 0.10, else: 0.0
-    risk = risk + if amount_vs_avg > 0.8, do: 0.15, else: 0.0
-    risk = risk + if km_from_home > 0.7, do: 0.15, else: 0.0
-    risk = risk + if unknown_merchant == 1, do: 0.15, else: 0.0
-    risk = risk + if mcc_risk > 0.6, do: 0.10, else: 0.0
-    risk = risk + if tx_count > 0.8, do: 0.10, else: 0.0
-    risk = risk + if min_since_last == -1.0 and amount > 0.5, do: 0.10, else: 0.0
+    # Project to 8D first
+    query_14d = floats_to_binary(vec)
+    [{:svd_matrix, svd_matrix}] = :ets.lookup(:vector_store, :svd_matrix)
+    query_8d = RinhaFraud.KnnNif.project_svd(query_14d, svd_matrix)
 
+    # LDA decision: score = w^T * x + w0
+    w = binary_to_floats(lda_w_bin, 8)
+    [w0] = binary_to_floats(lda_w0_bin, 1)
+    x = binary_to_floats(query_8d, 8)
+
+    lda_score = dot_product(w, x) + w0
+
+    # Thresholds based on analysis (thresh=10.0 gives 97.8% hit rate with minimal errors)
     cond do
-      # Legit obvio: baixo risco + card presente + merchant conhecido + amount baixo
-      risk < 0.10 and card_present == 1 and unknown_merchant == 0 and amount < 0.3 ->
-        {:ok, 0.0}
-      # Fraud obvio: alto risco combinado
-      risk > 0.60 ->
-        {:ok, 1.0}
-      true ->
-        :miss
+      lda_score > 10.0 -> {:ok, 1.0}
+      lda_score < -10.0 -> {:ok, 0.0}
+      true -> :miss
     end
   end
 
@@ -128,6 +125,10 @@ defmodule RinhaFraud.Router do
 
   defp binary_to_floats(bin, n) do
     for <<f::float-little-32 <- bin>>, do: f
+  end
+
+  defp dot_product(a, b) do
+    Enum.zip(a, b) |> Enum.reduce(0.0, fn {x, y}, acc -> acc + x * y end)
   end
 
   defp multiply_matrix_vector(matrix, vector, n) do
