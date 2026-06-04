@@ -46,10 +46,19 @@ defmodule RinhaFraud.Router do
     lda_score = dot_product(w, vec_8d) + w0
 
     cond do
-      lda_score > 10.0 -> 1.0
-      lda_score < -10.0 -> 0.0
-      true -> if lda_score > 0, do: 1.0, else: 0.0
+      lda_score > 1.0 -> 1.0
+      lda_score < -1.0 -> 0.0
+      true -> knn_predict(vec_8d_bin)
     end
+  end
+
+  defp knn_predict(vec_8d_bin) do
+    k = 15
+    nprobe = 16
+    neighbors = RinhaFraud.VectorStore.knn_8d(vec_8d_bin, k, nprobe)
+
+    fraud_count = Enum.count(neighbors, fn {_dist, label} -> label == 1 end)
+    if fraud_count > div(k, 2), do: 1.0, else: 0.0
   end
 
   defp binary_to_floats(bin, _n) do

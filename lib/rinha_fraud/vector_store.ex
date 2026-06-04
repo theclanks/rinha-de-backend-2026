@@ -58,6 +58,18 @@ defmodule RinhaFraud.VectorStore do
     |> Enum.sort()
   end
 
+  def knn_8d(query_8d_bin, k, nprobe \\ 10) do
+    [{:vectors, vectors_bin}] = :ets.lookup(:vector_store, :vectors)
+    [{:labels, labels_bin}] = :ets.lookup(:vector_store, :labels)
+    [{:centroids, centroids_bin}] = :ets.lookup(:vector_store, :centroids)
+    [{:bucket_starts, bucket_starts_bin}] = :ets.lookup(:vector_store, :bucket_starts)
+
+    n_clusters = byte_size(centroids_bin) |> div(@dims * 4)
+
+    RinhaFraud.KnnNif.knn_search_ivf(vectors_bin, labels_bin, centroids_bin, bucket_starts_bin, query_8d_bin, k, nprobe, n_clusters)
+    |> Enum.sort()
+  end
+
   def knn_brute_force(query_vec, k) do
     [{:vectors, vectors_bin}] = :ets.lookup(:vector_store, :vectors)
     [{:labels, labels_bin}] = :ets.lookup(:vector_store, :labels)
