@@ -2,7 +2,7 @@
 FROM elixir:1.16-alpine AS builder
 
 WORKDIR /app
-RUN apk add --no-cache build-base git python3 py3-pip py3-numpy py3-scikit-learn
+RUN apk add --no-cache build-base git
 
 COPY mix.exs mix.lock ./
 RUN mix local.hex --force && mix local.rebar --force
@@ -11,11 +11,7 @@ RUN MIX_ENV=prod mix deps.compile
 
 COPY lib ./lib
 COPY config ./config
-COPY resources ./resources
-COPY convert_data.py ./
 COPY native ./native
-
-RUN python3 convert_data.py resources/references.json.gz
 
 RUN cd native/knn && ERTS_INCLUDE_DIR=/usr/local/lib/erlang/erts-14.2.5.15/include make
 
@@ -27,11 +23,12 @@ WORKDIR /app
 
 RUN apk add --no-cache libgcc
 
+# Copy pre-processed binary files directly (no Python build step needed)
 COPY resources/normalization.json resources/mcc_risk.json ./resources/
-COPY --from=builder /app/resources/vectors_8d_sorted.bin /app/resources/labels_sorted.bin ./resources/
-COPY --from=builder /app/resources/centroids.bin /app/resources/bucket_starts.bin /app/resources/svd_matrix.bin ./resources/
-COPY --from=builder /app/resources/lda_w.bin /app/resources/lda_w0.bin ./resources/
-COPY --from=builder /app/resources/fraud_centroid.bin /app/resources/legit_centroid.bin /app/resources/cov_inv.bin ./resources/
+COPY resources/vectors_8d_sorted.bin resources/labels_sorted.bin ./resources/
+COPY resources/centroids.bin resources/bucket_starts.bin resources/svd_matrix.bin ./resources/
+COPY resources/lda_w.bin resources/lda_w0.bin ./resources/
+COPY resources/fraud_centroid.bin resources/legit_centroid.bin resources/cov_inv.bin ./resources/
 
 COPY --from=builder /app/_build/prod/rel/rinha_fraud ./
 
