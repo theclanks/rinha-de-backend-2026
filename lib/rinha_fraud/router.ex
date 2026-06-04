@@ -33,11 +33,17 @@ defmodule RinhaFraud.Router do
   defp lda_predict(vec) do
     [{:lda_w, lda_w_bin}] = :ets.lookup(:vector_store, :lda_w)
     [{:lda_w0, lda_w0_bin}] = :ets.lookup(:vector_store, :lda_w0)
+    [{:svd_matrix, svd_matrix}] = :ets.lookup(:vector_store, :svd_matrix)
 
-    w = binary_to_floats(lda_w_bin, 14)
+    vec_bin = for f <- vec, into: <<>>, do: <<f::float-little-32>>
+    vec_8d_bin = RinhaFraud.KnnNif.project_svd(vec_bin, svd_matrix)
+
+    w = binary_to_floats(lda_w_bin, 8)
     [w0] = binary_to_floats(lda_w0_bin, 1)
 
-    lda_score = dot_product(w, vec) + w0
+    vec_8d = for <<f::float-little-32 <- vec_8d_bin>>, do: f
+
+    lda_score = dot_product(w, vec_8d) + w0
 
     cond do
       lda_score > 10.0 -> 1.0
