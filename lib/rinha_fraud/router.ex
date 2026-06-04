@@ -46,8 +46,8 @@ defmodule RinhaFraud.Router do
     lda_score = dot_product(w, vec_8d) + w0
 
     cond do
-      lda_score > 1.0 -> 1.0
-      lda_score < -1.0 -> 0.0
+      lda_score > 10.0 -> 1.0
+      lda_score < -10.0 -> 0.0
       true -> knn_predict(vec_8d_bin)
     end
   end
