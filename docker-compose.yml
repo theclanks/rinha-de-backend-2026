@@ -6,55 +6,42 @@ services:
       - "9999:9999"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - sockets:/sockets
     depends_on:
       - api1
       - api2
     deploy:
       resources:
         limits:
-          cpus: "0.30"
+          cpus: "0.20"
           memory: "30MB"
     networks:
       - rinha
 
   api1:
-    image: rinha_backend:latest
+    image: luisotte/rinha-de-backend-2026:latest
     platform: linux/amd64
     environment:
-      - API_SOCKET=/sockets/api1.sock
-    volumes:
-      - sockets:/sockets
+      - PORT=4000
     deploy:
       resources:
         limits:
-          cpus: "0.35"
+          cpus: "0.40"
           memory: "160MB"
     networks:
       - rinha
 
   api2:
-    image: rinha_backend:latest
+    image: luisotte/rinha-de-backend-2026:latest
     platform: linux/amd64
     environment:
-      - API_SOCKET=/sockets/api2.sock
-    volumes:
-      - sockets:/sockets
+      - PORT=4001
     deploy:
       resources:
         limits:
-          cpus: "0.35"
+          cpus: "0.40"
           memory: "160MB"
     networks:
       - rinha
-
-volumes:
-  sockets:
-    driver: local
-    driver_opts:
-      type: tmpfs
-      device: tmpfs
-      o: "size=4m,uid=0,gid=0,mode=0777"
 
 networks:
   rinha:
