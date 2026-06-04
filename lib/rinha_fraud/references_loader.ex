@@ -19,9 +19,10 @@ defmodule RinhaFraud.ReferencesLoader do
     fraud_centroid = File.read!("#{path}/fraud_centroid.bin")
     legit_centroid = File.read!("#{path}/legit_centroid.bin")
     cov_inv = File.read!("#{path}/cov_inv.bin")
+    cart_tree = File.read!("#{path}/cart_tree.bin")
     count = byte_size(labels_bin)
 
-    RinhaFraud.VectorStore.set_data(vectors_bin, labels_bin, count, centroids_bin, bucket_starts_bin, svd_matrix, lda_w, lda_w0, fraud_centroid, legit_centroid, cov_inv)
+    RinhaFraud.VectorStore.set_data(vectors_bin, labels_bin, count, centroids_bin, bucket_starts_bin, svd_matrix, lda_w, lda_w0, fraud_centroid, legit_centroid, cov_inv, cart_tree)
 
     elapsed = System.monotonic_time(:millisecond) - t0
     Logger.info("[ReferencesLoader] #{count} vetores 8D (IVF) em #{elapsed}ms")

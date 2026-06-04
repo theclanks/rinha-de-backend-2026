@@ -283,11 +283,45 @@ static ERL_NIF_TERM knn_brute_force(ErlNifEnv* env, int argc, const ERL_NIF_TERM
     return result;
 }
 
+typedef struct {
+    int feature_idx;
+    float threshold;
+    int left_child;
+    int right_child;
+    float value;
+} cart_node;
+
+static ERL_NIF_TERM cart_predict(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    ErlNifBinary query_bin, tree_bin;
+
+    if (!enif_inspect_binary(env, argv[0], &query_bin)) return enif_make_badarg(env);
+    if (!enif_inspect_binary(env, argv[1], &tree_bin)) return enif_make_badarg(env);
+
+    if (query_bin.size != DIMS * 4) return enif_make_badarg(env);
+    if (tree_bin.size < 4) return enif_make_badarg(env);
+
+    float* query = (float*)query_bin.data;
+    int n_nodes = *(int*)tree_bin.data;
+    cart_node* nodes = (cart_node*)(tree_bin.data + 4);
+
+    int idx = 0;
+    while (idx >= 0 && idx < n_nodes && nodes[idx].feature_idx != -1) {
+        if (query[nodes[idx].feature_idx] <= nodes[idx].threshold) {
+            idx = nodes[idx].left_child;
+        } else {
+            idx = nodes[idx].right_child;
+        }
+    }
+
+    return enif_make_double(env, (double)nodes[idx].value);
+}
+
 static ErlNifFunc nif_funcs[] = {
     {"knn_search_ivf", 8, knn_search_ivf, ERL_NIF_DIRTY_JOB_CPU_BOUND},
     {"project_svd", 2, project_svd, ERL_NIF_DIRTY_JOB_CPU_BOUND},
     {"mahalanobis_score", 4, mahalanobis_score, ERL_NIF_DIRTY_JOB_CPU_BOUND},
-    {"knn_brute_force", 4, knn_brute_force, ERL_NIF_DIRTY_JOB_CPU_BOUND}
+    {"knn_brute_force", 4, knn_brute_force, ERL_NIF_DIRTY_JOB_CPU_BOUND},
+    {"cart_predict", 2, cart_predict, ERL_NIF_DIRTY_JOB_CPU_BOUND}
 };
 
 ERL_NIF_INIT(Elixir.RinhaFraud.KnnNif, nif_funcs, NULL, NULL, NULL, NULL)

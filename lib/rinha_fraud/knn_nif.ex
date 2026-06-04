@@ -23,4 +23,8 @@ defmodule RinhaFraud.KnnNif do
   def knn_brute_force(_vectors_bin, _labels_bin, _query_bin, _k) do
     exit("NIF knn_brute_force/4 not implemented")
   end
+
+  def cart_predict(_query_bin, _tree_bin) do
+    exit("NIF cart_predict/2 not implemented")
+  end
 end

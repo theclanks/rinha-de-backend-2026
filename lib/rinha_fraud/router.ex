@@ -22,18 +22,19 @@ defmodule RinhaFraud.Router do
     {:ok, body, conn} = Plug.Conn.read_body(conn)
     payload = Jason.decode!(body)
     vec = RinhaFraud.Vectorizer.vectorize(payload, @consts, @mcc_risk)
-    {score, method} = lda_predict(vec)
-    respond(conn, score, method)
+    score = predict(vec)
+    respond(conn, score)
   end
 
   match _ do
     send_resp(conn, 404, "{\"error\":\"not found\"}")
   end
 
-  defp lda_predict(vec) do
+  defp predict(vec) do
     [{:lda_w, lda_w_bin}] = :ets.lookup(:vector_store, :lda_w)
     [{:lda_w0, lda_w0_bin}] = :ets.lookup(:vector_store, :lda_w0)
     [{:svd_matrix, svd_matrix}] = :ets.lookup(:vector_store, :svd_matrix)
+    [{:cart_tree, cart_tree_bin}] = :ets.lookup(:vector_store, :cart_tree)
 
     vec_bin = for f <- vec, into: <<>>, do: <<f::float-little-32>>
     vec_8d_bin = RinhaFraud.KnnNif.project_svd(vec_bin, svd_matrix)
@@ -46,19 +47,12 @@ defmodule RinhaFraud.Router do
     lda_score = dot_product(w, vec_8d) + w0
 
     cond do
-      lda_score > 10.0 -> {1.0, "lda"}
-      lda_score < -10.0 -> {0.0, "lda"}
-      true -> {knn_predict(vec_8d_bin), "knn"}
+      lda_score > 10.0 -> 1.0
+      lda_score < -10.0 -> 0.0
+      true ->
+        fraud_prob = RinhaFraud.KnnNif.cart_predict(vec_8d_bin, cart_tree_bin)
+        if fraud_prob > 0.5, do: 1.0, else: 0.0
     end
-  end
-
-  defp knn_predict(vec_8d_bin) do
-    k = 15
-    nprobe = 16
-    neighbors = RinhaFraud.VectorStore.knn_8d(vec_8d_bin, k, nprobe)
-
-    fraud_count = Enum.count(neighbors, fn {_dist, label} -> label == 1 end)
-    if fraud_count > div(k, 2), do: 1.0, else: 0.0
   end
 
   defp binary_to_floats(bin, _n) do
@@ -69,11 +63,10 @@ defmodule RinhaFraud.Router do
     Enum.zip(a, b) |> Enum.reduce(0.0, fn {x, y}, acc -> acc + x * y end)
   end
 
-  defp respond(conn, score, method \\ "lda") do
+  defp respond(conn, score) do
     body = if score < 0.6, do: @resp_approved, else: @resp_rejected
     conn
     |> put_resp_header("content-type", "application/json")
-    |> put_resp_header("x-detection-method", method)
     |> send_resp(200, body)
   end
 end
