@@ -22,8 +22,8 @@ defmodule RinhaFraud.Router do
     {:ok, body, conn} = Plug.Conn.read_body(conn)
     payload = Jason.decode!(body)
     vec = RinhaFraud.Vectorizer.vectorize(payload, @consts, @mcc_risk)
-    score = lda_predict(vec)
-    respond(conn, score)
+    {score, method} = lda_predict(vec)
+    respond(conn, score, method)
   end
 
   match _ do
@@ -46,9 +46,9 @@ defmodule RinhaFraud.Router do
     lda_score = dot_product(w, vec_8d) + w0
 
     cond do
-      lda_score > 10.0 -> 1.0
-      lda_score < -10.0 -> 0.0
-      true -> knn_predict(vec_8d_bin)
+      lda_score > 10.0 -> {1.0, "lda"}
+      lda_score < -10.0 -> {0.0, "lda"}
+      true -> {knn_predict(vec_8d_bin), "knn"}
     end
   end
 
@@ -69,10 +69,11 @@ defmodule RinhaFraud.Router do
     Enum.zip(a, b) |> Enum.reduce(0.0, fn {x, y}, acc -> acc + x * y end)
   end
 
-  defp respond(conn, score) do
+  defp respond(conn, score, method \\ "lda") do
     body = if score < 0.6, do: @resp_approved, else: @resp_rejected
     conn
     |> put_resp_header("content-type", "application/json")
+    |> put_resp_header("x-detection-method", method)
     |> send_resp(200, body)
   end
 end
