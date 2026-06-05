@@ -24,12 +24,9 @@ WORKDIR /app
 RUN apk add --no-cache libgcc
 
 # Copy pre-processed binary files directly (no Python build step needed)
-COPY resources/normalization.json resources/mcc_risk.json ./resources/
-COPY resources/vectors_8d_sorted.bin resources/labels_sorted.bin ./resources/
-COPY resources/centroids.bin resources/bucket_starts.bin resources/svd_matrix.bin ./resources/
-COPY resources/lda_w.bin resources/lda_w0.bin ./resources/
-COPY resources/fraud_centroid.bin resources/legit_centroid.bin resources/cov_inv.bin ./resources/
-COPY resources/cart_tree.bin ./resources/
+COPY resources/normalization.json resources/mcc_risk.json resources/rf_forest.bin ./resources/
+COPY resources/vectors_14d_i16_sorted.bin resources/labels_14d_sorted.bin ./resources/
+COPY resources/centroids_14d_i16.bin resources/bucket_starts_14d.bin ./resources/
 
 COPY --from=builder /app/_build/prod/rel/rinha_fraud ./
 

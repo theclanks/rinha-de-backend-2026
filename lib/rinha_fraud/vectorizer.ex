@@ -14,14 +14,14 @@ defmodule RinhaFraud.Vectorizer do
     "max_merchant_avg_amount" => 10_000
   }
 
-  def load_consts(path \\ "/app/resources/normalization.json") do
+  def load_consts(path \\ default_resource_path("normalization.json")) do
     case File.read(path) do
       {:ok, raw} -> Map.merge(@defaults, Jason.decode!(raw))
       _ -> @defaults
     end
   end
 
-  def load_mcc_risk(path \\ "/app/resources/mcc_risk.json") do
+  def load_mcc_risk(path \\ default_resource_path("mcc_risk.json")) do
     case File.read(path) do
       {:ok, raw} -> Jason.decode!(raw)
       _ -> %{}
@@ -46,7 +46,7 @@ defmodule RinhaFraud.Vectorizer do
     [
       clamp(tx["amount"] / consts["max_amount"]),
       clamp(tx["installments"] / consts["max_installments"]),
-      clamp((tx["amount"] / safe_div(customer["avg_amount"])) / consts["amount_vs_avg_ratio"]),
+      clamp(tx["amount"] / safe_div(customer["avg_amount"]) / consts["amount_vs_avg_ratio"]),
       hour / 23.0,
       dow / 6.0,
       minutes_since_last(last_tx, requested_at, consts["max_minutes"]),
@@ -78,9 +78,11 @@ defmodule RinhaFraud.Vectorizer do
   defp unknown_merchant(merchant_id, known) when is_list(known) do
     if merchant_id in known, do: 0, else: 1
   end
+
   defp unknown_merchant(_, _), do: 1
 
   defp minutes_since_last(nil, _requested_at, _max), do: -1.0
+
   defp minutes_since_last(last_tx, requested_at, max_minutes) do
     {:ok, last_dt, _} = DateTime.from_iso8601(last_tx["timestamp"])
     diff_seconds = DateTime.diff(requested_at, last_dt)
@@ -89,7 +91,13 @@ defmodule RinhaFraud.Vectorizer do
   end
 
   defp km_from_last(nil, _max), do: -1.0
+
   defp km_from_last(last_tx, max_km) do
     clamp(last_tx["km_from_current"] / max_km)
+  end
+
+  defp default_resource_path(file) do
+    app_path = "/app/resources/#{file}"
+    if File.exists?(app_path), do: app_path, else: "resources/#{file}"
   end
 end

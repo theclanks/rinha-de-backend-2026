@@ -1,9 +1,5 @@
 defmodule RinhaFraud.VectorStore do
-  @moduledoc """
-  Vetores 8D (SVD 14->8) com IVF index. KNN via NIF AVX.
-  """
-
-  @dims 8
+  @moduledoc false
 
   def child_spec(_opts) do
     %{
@@ -20,69 +16,86 @@ defmodule RinhaFraud.VectorStore do
     Agent.start_link(fn -> :ok end, name: __MODULE__)
   end
 
-  def set_data(vectors_bin, labels_bin, count, centroids_bin, bucket_starts_bin, svd_matrix, lda_w, lda_w0, fraud_centroid, legit_centroid, cov_inv, cart_tree) do
-    :ets.insert(:vector_store, {:vectors, vectors_bin})
-    :ets.insert(:vector_store, {:labels, labels_bin})
-    :ets.insert(:vector_store, {:count, count})
-    :ets.insert(:vector_store, {:centroids, centroids_bin})
-    :ets.insert(:vector_store, {:bucket_starts, bucket_starts_bin})
-    :ets.insert(:vector_store, {:svd_matrix, svd_matrix})
-    :ets.insert(:vector_store, {:lda_w, lda_w})
-    :ets.insert(:vector_store, {:lda_w0, lda_w0})
-    :ets.insert(:vector_store, {:fraud_centroid, fraud_centroid})
-    :ets.insert(:vector_store, {:legit_centroid, legit_centroid})
-    :ets.insert(:vector_store, {:cov_inv, cov_inv})
-    :ets.insert(:vector_store, {:cart_tree, cart_tree})
+  def set_data(rf_forest) when is_binary(rf_forest) do
+    set_data(RinhaFraud.RandomForest.load(rf_forest))
   end
 
-  def size do
-    case :ets.lookup(:vector_store, :count) do
-      [{:count, n}] -> n
-      [] -> 0
-    end
+  def set_data(%RinhaFraud.RandomForest{} = rf_forest) do
+    :ets.insert(:vector_store, {:rf_forest, rf_forest})
   end
 
-  def knn(query_vec, k, nprobe \\ 10) do
-    [{:vectors, vectors_bin}] = :ets.lookup(:vector_store, :vectors)
-    [{:labels, labels_bin}] = :ets.lookup(:vector_store, :labels)
-    [{:centroids, centroids_bin}] = :ets.lookup(:vector_store, :centroids)
-    [{:bucket_starts, bucket_starts_bin}] = :ets.lookup(:vector_store, :bucket_starts)
-    [{:svd_matrix, svd_matrix}] = :ets.lookup(:vector_store, :svd_matrix)
-    [{:count, count}] = :ets.lookup(:vector_store, :count)
+  def set_ivf14(vectors, labels, centroids, bucket_starts) do
+    n_clusters = div(byte_size(centroids), 14 * 2)
 
-    n_clusters = byte_size(centroids_bin) |> div(@dims * 4)
+    :ets.insert(:vector_store, [
+      {:ivf14_vectors, vectors},
+      {:ivf14_labels, labels},
+      {:ivf14_centroids, centroids},
+      {:ivf14_bucket_starts, bucket_starts},
+      {:ivf14_n_clusters, n_clusters}
+    ])
+  end
 
-    query_14d = floats_to_binary(query_vec)
-    query_8d = RinhaFraud.KnnNif.project_svd(query_14d, svd_matrix)
+  def ivf14_ready? do
+    :ets.member(:vector_store, :ivf14_vectors)
+  end
 
-    RinhaFraud.KnnNif.knn_search_ivf(vectors_bin, labels_bin, centroids_bin, bucket_starts_bin, query_8d, k, nprobe, n_clusters)
+  def knn14(query_vec, k \\ 5, nprobe \\ 24) do
+    [{:ivf14_vectors, vectors}] = :ets.lookup(:vector_store, :ivf14_vectors)
+    [{:ivf14_labels, labels}] = :ets.lookup(:vector_store, :ivf14_labels)
+    [{:ivf14_centroids, centroids}] = :ets.lookup(:vector_store, :ivf14_centroids)
+    [{:ivf14_bucket_starts, bucket_starts}] = :ets.lookup(:vector_store, :ivf14_bucket_starts)
+    [{:ivf14_n_clusters, n_clusters}] = :ets.lookup(:vector_store, :ivf14_n_clusters)
+
+    query_bin = for f <- query_vec, into: <<>>, do: <<quantize_i16(f)::little-signed-16>>
+
+    RinhaFraud.KnnNif.knn_search_ivf_14_i16(
+      vectors,
+      labels,
+      centroids,
+      bucket_starts,
+      query_bin,
+      k,
+      nprobe,
+      n_clusters
+    )
     |> Enum.sort()
   end
 
-  def knn_8d(query_8d_bin, k, nprobe \\ 10) do
-    [{:vectors, vectors_bin}] = :ets.lookup(:vector_store, :vectors)
-    [{:labels, labels_bin}] = :ets.lookup(:vector_store, :labels)
-    [{:centroids, centroids_bin}] = :ets.lookup(:vector_store, :centroids)
-    [{:bucket_starts, bucket_starts_bin}] = :ets.lookup(:vector_store, :bucket_starts)
-
-    n_clusters = byte_size(centroids_bin) |> div(@dims * 4)
-
-    RinhaFraud.KnnNif.knn_search_ivf(vectors_bin, labels_bin, centroids_bin, bucket_starts_bin, query_8d_bin, k, nprobe, n_clusters)
-    |> Enum.sort()
+  defp quantize_i16(value) do
+    value
+    |> Kernel.*(32767)
+    |> round()
+    |> max(-32767)
+    |> min(32767)
   end
 
-  def knn_brute_force(query_vec, k) do
-    [{:vectors, vectors_bin}] = :ets.lookup(:vector_store, :vectors)
-    [{:labels, labels_bin}] = :ets.lookup(:vector_store, :labels)
-    [{:svd_matrix, svd_matrix}] = :ets.lookup(:vector_store, :svd_matrix)
-
-    query_14d = floats_to_binary(query_vec)
-    query_8d = RinhaFraud.KnnNif.project_svd(query_14d, svd_matrix)
-
-    RinhaFraud.KnnNif.knn_brute_force(vectors_bin, labels_bin, query_8d, k)
+  def set_data(
+        vectors,
+        labels,
+        count,
+        centroids,
+        bucket_starts,
+        svd_matrix,
+        lda_w,
+        lda_w0,
+        cov_inv
+      ) do
+    :ets.insert(:vector_store, [
+      {:vectors, vectors},
+      {:labels, labels},
+      {:count, count},
+      {:centroids, centroids},
+      {:bucket_starts, bucket_starts},
+      {:svd_matrix, svd_matrix},
+      {:lda_w, lda_w},
+      {:lda_w0, lda_w0},
+      {:cov_inv, cov_inv}
+    ])
   end
 
-  defp floats_to_binary(floats) do
-    for f <- floats, into: <<>>, do: <<f::float-little-32>>
+  def rf_forest do
+    [{:rf_forest, forest}] = :ets.lookup(:vector_store, :rf_forest)
+    forest
   end
 end
