@@ -6,9 +6,7 @@ defmodule RinhaFraud.Router do
 
   @consts RinhaFraud.Vectorizer.load_consts()
   @mcc_risk RinhaFraud.Vectorizer.load_mcc_risk()
-  @rf_threshold 0.5
-  @fallback_band 0.10
-  @fallback_nprobe 64
+  @lda_threshold 10.0
 
   @resp_approved "{\"approved\":true,\"fraud_score\":0.0}"
   @resp_rejected "{\"approved\":false,\"fraud_score\":1.0}"
@@ -34,18 +32,29 @@ defmodule RinhaFraud.Router do
   end
 
   defp predict(vec) do
-    forest = RinhaFraud.VectorStore.rf_forest()
-    fraud_prob = RinhaFraud.RandomForest.predict_proba(forest, vec)
-    threshold = max(@rf_threshold, forest.threshold)
+    {lda_w_bin, lda_w0_bin, cart_tree_bin} = RinhaFraud.VectorStore.lda_cart14()
+    w = binary_to_floats(lda_w_bin)
+    [w0] = binary_to_floats(lda_w0_bin)
+    lda_score = dot_product(w, vec) + w0
 
-    if RinhaFraud.VectorStore.ivf14_ready?() and abs(fraud_prob - threshold) <= @fallback_band do
-      vec
-      |> RinhaFraud.VectorStore.knn14(5, @fallback_nprobe)
-      |> Enum.count(fn {_dist, label} -> label == 1 end)
-      |> then(fn fraud_count -> fraud_count / 5.0 end)
-    else
-      if fraud_prob >= threshold, do: 1.0, else: 0.0
+    cond do
+      lda_score > @lda_threshold ->
+        1.0
+
+      lda_score < -@lda_threshold ->
+        0.0
+
+      true ->
+        vec_bin = for f <- vec, into: <<>>, do: <<f::float-little-32>>
+        fraud_prob = RinhaFraud.KnnNif.cart_predict_14(vec_bin, cart_tree_bin)
+        if fraud_prob > 0.5, do: 1.0, else: 0.0
     end
+  end
+
+  defp binary_to_floats(bin), do: for(<<f::float-little-32 <- bin>>, do: f)
+
+  defp dot_product(a, b) do
+    Enum.zip(a, b) |> Enum.reduce(0.0, fn {x, y}, acc -> acc + x * y end)
   end
 
   defp respond(conn, score) do

@@ -24,6 +24,21 @@ defmodule RinhaFraud.VectorStore do
     :ets.insert(:vector_store, {:rf_forest, rf_forest})
   end
 
+  def set_lda_cart14(lda_w, lda_w0, cart_tree) do
+    :ets.insert(:vector_store, [
+      {:lda_w_14d, lda_w},
+      {:lda_w0_14d, lda_w0},
+      {:cart_tree_14d, cart_tree}
+    ])
+  end
+
+  def lda_cart14 do
+    [{:lda_w_14d, lda_w}] = :ets.lookup(:vector_store, :lda_w_14d)
+    [{:lda_w0_14d, lda_w0}] = :ets.lookup(:vector_store, :lda_w0_14d)
+    [{:cart_tree_14d, cart_tree}] = :ets.lookup(:vector_store, :cart_tree_14d)
+    {lda_w, lda_w0, cart_tree}
+  end
+
   def set_ivf14(vectors, labels, centroids, bucket_starts) do
     n_clusters = div(byte_size(centroids), 14 * 2)
 

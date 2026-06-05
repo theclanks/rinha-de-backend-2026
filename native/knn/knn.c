@@ -540,6 +540,21 @@ static ERL_NIF_TERM cart_predict(ErlNifEnv* env, int argc, const ERL_NIF_TERM ar
     return enif_make_double(env, (double)nodes[idx].value);
 }
 
+static ERL_NIF_TERM cart_predict_14(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    ErlNifBinary query_bin, tree_bin;
+
+    if (!enif_inspect_binary(env, argv[0], &query_bin)) return enif_make_badarg(env);
+    if (!enif_inspect_binary(env, argv[1], &tree_bin)) return enif_make_badarg(env);
+
+    if (query_bin.size != DIMS14 * 4) return enif_make_badarg(env);
+    if (tree_bin.size < 4) return enif_make_badarg(env);
+
+    float* query = (float*)query_bin.data;
+    float value = cart_tree_predict(query, tree_bin.data, DIMS14);
+
+    return enif_make_double(env, (double)value);
+}
+
 static ErlNifFunc nif_funcs[] = {
     {"knn_search_ivf", 8, knn_search_ivf, ERL_NIF_DIRTY_JOB_CPU_BOUND},
     {"knn_search_ivf_14", 8, knn_search_ivf_14, ERL_NIF_DIRTY_JOB_CPU_BOUND},
@@ -548,6 +563,7 @@ static ErlNifFunc nif_funcs[] = {
     {"mahalanobis_score", 4, mahalanobis_score, ERL_NIF_DIRTY_JOB_CPU_BOUND},
     {"knn_brute_force", 4, knn_brute_force, ERL_NIF_DIRTY_JOB_CPU_BOUND},
     {"cart_predict", 2, cart_predict, ERL_NIF_DIRTY_JOB_CPU_BOUND},
+    {"cart_predict_14", 2, cart_predict_14, ERL_NIF_DIRTY_JOB_CPU_BOUND},
     {"rf_predict", 2, rf_predict, ERL_NIF_DIRTY_JOB_CPU_BOUND}
 };
 

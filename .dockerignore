@@ -10,7 +10,12 @@ misc
 participants
 resources/references.json.gz
 resources/vectors_14d_sorted.bin
+resources/vectors_14d_i16_sorted.bin
 resources/centroids_14d.bin
+resources/centroids_14d_i16.bin
+resources/labels_14d_sorted.bin
+resources/bucket_starts_14d.bin
+resources/rf_forest.bin
 resources/rf_forest_candidate.bin
 resources/rf_forest_candidate_full.bin
 resources/ivf14_meta.json

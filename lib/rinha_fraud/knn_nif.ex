@@ -63,6 +63,10 @@ defmodule RinhaFraud.KnnNif do
     exit("NIF cart_predict/2 not implemented")
   end
 
+  def cart_predict_14(_query_bin, _tree_bin) do
+    exit("NIF cart_predict_14/2 not implemented")
+  end
+
   def rf_predict(_query_bin, _forest_bin) do
     exit("NIF rf_predict/2 not implemented")
   end
