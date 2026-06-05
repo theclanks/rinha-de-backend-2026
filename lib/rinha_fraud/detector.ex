@@ -13,7 +13,7 @@ defmodule RinhaFraud.Detector do
     fraud_prob = RinhaFraud.RandomForest.predict_proba(forest, vec)
 
     score =
-      if RinhaFraud.VectorStore.ivf14_ready?() and abs(fraud_prob - threshold) <= 0.20 do
+      if RinhaFraud.VectorStore.ivf14_ready?() and abs(fraud_prob - threshold) <= 0.10 do
         vec
         |> RinhaFraud.VectorStore.knn14(5, 64)
         |> Enum.count(fn {_dist, label} -> label == 1 end)

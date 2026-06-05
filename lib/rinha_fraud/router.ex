@@ -7,7 +7,7 @@ defmodule RinhaFraud.Router do
   @consts RinhaFraud.Vectorizer.load_consts()
   @mcc_risk RinhaFraud.Vectorizer.load_mcc_risk()
   @rf_threshold 0.5
-  @fallback_band 0.20
+  @fallback_band 0.10
   @fallback_nprobe 64
 
   @resp_approved "{\"approved\":true,\"fraud_score\":0.0}"
